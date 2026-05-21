@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beach Cleanup – Leaderboard</title>
+  <link rel="stylesheet" href="https://smartbeachcleanups.com/beach-style.css" />
+  <style>
+    body { margin: 0; padding: 16px; background: #f4f6f7; }
+    .container { display: flex; justify-content: center; }
+    .panel { width: 100%; max-width: 1200px; padding: 32px; }
+    table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+    th, td { padding: 14px; text-align: center; border: 1px solid #ddd; }
+    thead th { background: #f5f5f5; font-weight: 600; }
+    th.group { text-align: center; }
+    td.name { text-align: left; font-weight: 500; }
+    .subhead { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+  </style>
+</head>
+<body>
+
+  <h1>Cleanup Leaderboard</h1>
+
+  <div class="container">
+    <div class="panel">
+      <p style="opacity:0.8; margin-bottom:15px;">Volunteer impact ranked by cleanup contribution</p>
+
+      <p id="leaderboardStatus" style="text-align:center; padding:20px; opacity:0.6;">Loading leaderboard…</p>
+
+      <table id="leaderboardTable" style="display:none;">
+        <thead>
+          <tr>
+            <th rowspan="2">Rank</th>
+            <th rowspan="2">Name</th>
+            <th class="group" colspan="2">Weight (lbs)</th>
+            <th class="group" colspan="2"># of Cleanups</th>
+          </tr>
+          <tr>
+            <th>Last 30 Days<div class="subhead">Recent</div></th>
+            <th>This Year<div class="subhead">YTD</div></th>
+            <th>Last 30 Days<div class="subhead">Recent</div></th>
+            <th>This Year<div class="subhead">YTD</div></th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://smartbeachcleanups.com/auth.js"></script>
+  <script>
+    const CLIENT_ID = new URLSearchParams(window.location.search).get("client") || "demo";
+    const API_BASE  = "https://api.smartbeachcleanups.com";
+
+    async function loadLeaderboard() {
+      const statusEl = document.getElementById("leaderboardStatus");
+      const tableEl  = document.getElementById("leaderboardTable");
+      const tbody    = document.getElementById("leaderboardBody");
+      try {
+        const r = await apiFetch(`${API_BASE}/leaderboard?client=${CLIENT_ID}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const entries = await r.json();
+        if (entries.length === 0) {
+          statusEl.textContent = "No leaderboard data yet — go do some cleanups! 🏖";
+          return;
+        }
+        tbody.innerHTML = "";
+        entries.forEach(p => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${p.rank}</td><td class="name">${p.name}</td>
+            <td>${p.weight_30d}</td><td>${p.weight_ytd}</td>
+            <td>${p.cleanups_30d}</td><td>${p.cleanups_ytd}</td>`;
+          tbody.appendChild(row);
+        });
+        statusEl.style.display = "none";
+        tableEl.style.display  = "table";
+      } catch (err) {
+        statusEl.innerHTML = `⚠️ Could not load leaderboard data.<br>
+          <span style="font-size:0.85rem;">Make sure the Flask server is running:
+          <code>python3 StructuredBeachCleanup/app.py</code></span>`;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await initAuthWidget();
+      await loadLeaderboard();
+    });
+  </script>
+
+</body>
+</html>

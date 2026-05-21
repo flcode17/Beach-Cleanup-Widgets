@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Beach Cleanup – Upload Photos</title>
+  <link rel="stylesheet" href="https://smartbeachcleanups.com/beach-style.css" />
+  <style>
+    body { display: flex; flex-direction: column; align-items: center; margin: 0; padding: 16px; background: #f4f6f7; }
+    .container { display: flex; justify-content: center; width: 100%; }
+    .panel { max-width: 900px; width: 100%; }
+    .upload-box { border: 2px dashed #aaa; padding: 40px; text-align: center; cursor: pointer; margin: 0 auto; }
+    .upload-box input { display: none; }
+    .results { margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+  <h1>Upload Cleanup Photos</h1>
+
+  <div class="container">
+    <div class="panel">
+      <label class="upload-box">
+        <h2>Upload Photos</h2>
+        <p>Drag & drop photos here or click to browse</p>
+        <p style="opacity:0.7; font-size:0.9rem;">JPG, PNG</p>
+        <input type="file" id="photoInput" multiple accept="image/*">
+      </label>
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+
+  <script src="https://smartbeachcleanups.com/auth.js"></script>
+  <script>
+    const CLIENT_ID = new URLSearchParams(window.location.search).get("client") || "demo";
+    const API_BASE  = "https://api.smartbeachcleanups.com";
+
+    document.addEventListener("DOMContentLoaded", initAuthWidget);
+
+    const input     = document.getElementById("photoInput");
+    const resultsEl = document.getElementById("results");
+    const uploadBox = document.querySelector(".upload-box");
+
+    function readFileAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = e => resolve(e.target.result);
+        reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    input.addEventListener("change", async () => {
+      const files = [...input.files];
+      input.value = "";
+      if (files.length === 0) return;
+
+      uploadBox.style.opacity = "0.5";
+      uploadBox.style.cursor  = "default";
+      resultsEl.innerHTML = `<p style="text-align:center;padding:20px;opacity:0.6;">
+        Uploading ${files.length} photo(s)…<br>
+        <small>AI content check in progress. This may take a few seconds.</small>
+      </p>`;
+
+      try {
+        const photoPayloads = await Promise.all(
+          files.map(async file => ({ name: file.name, src: await readFileAsDataURL(file) }))
+        );
+        const response = await apiFetch(`${API_BASE}/photos?client=${CLIENT_ID}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploader_name: "Volunteer", photos: photoPayloads }),
+        });
+        renderResults(await response.json());
+      } catch (err) {
+        resultsEl.innerHTML = `<p style="text-align:center;padding:20px;color:#c0392b;">
+          ❌ Could not reach the server.<br>
+          <small>Make sure the Flask server is running on port 5001.</small>
+        </p>`;
+      } finally {
+        uploadBox.style.opacity = "1";
+        uploadBox.style.cursor  = "pointer";
+      }
+    });
+
+    function renderResults(data) {
+      resultsEl.innerHTML = "";
+      if (data.accepted?.length > 0) {
+        const h = document.createElement("p");
+        h.style.cssText = "color:#27ae60;font-weight:600;margin-bottom:8px;";
+        h.textContent   = `✅ ${data.accepted.length} photo(s) accepted`;
+        resultsEl.appendChild(h);
+        const ul = document.createElement("ul");
+        ul.style.cssText = "margin:0 0 16px 0;padding-left:20px;";
+        data.accepted.forEach(p => { const li = document.createElement("li"); li.textContent = p.name; ul.appendChild(li); });
+        resultsEl.appendChild(ul);
+        const link = document.createElement("p");
+        link.innerHTML = `<a href="https://smartbeachcleanups.com/gallery.html?client=${CLIENT_ID}" target="_parent">View photos in the Gallery →</a>`;
+        resultsEl.appendChild(link);
+      }
+      if (data.rejected?.length > 0) {
+        const h = document.createElement("p");
+        h.style.cssText = "color:#c0392b;font-weight:600;margin:16px 0 8px;";
+        h.textContent   = `❌ ${data.rejected.length} photo(s) rejected`;
+        resultsEl.appendChild(h);
+        const ul = document.createElement("ul");
+        ul.style.cssText = "margin:0;padding-left:20px;";
+        data.rejected.forEach(p => {
+          const li = document.createElement("li");
+          li.innerHTML = `<strong>${p.name}</strong> — ${p.reason}`;
+          ul.appendChild(li);
+        });
+        resultsEl.appendChild(ul);
+      }
+      if (!data.accepted?.length && !data.rejected?.length) {
+        resultsEl.innerHTML = `<p style="text-align:center;opacity:0.6;">${data.message}</p>`;
+      }
+    }
+  </script>
+
+</body>
+</html>
