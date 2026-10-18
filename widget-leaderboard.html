@@ -61,7 +61,7 @@
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const entries = await r.json();
         if (entries.length === 0) {
-          statusEl.textContent = "No leaderboard data yet — go do some cleanups! 🏖";
+          statusEl.textContent = "No leaderboard data yet.";
           return;
         }
         tbody.innerHTML = "";
@@ -75,9 +75,7 @@
         statusEl.style.display = "none";
         tableEl.style.display  = "table";
       } catch (err) {
-        statusEl.innerHTML = `⚠️ Could not load leaderboard data.<br>
-          <span style="font-size:0.85rem;">Make sure the Flask server is running:
-          <code>python3 StructuredBeachCleanup/app.py</code></span>`;
+        statusEl.textContent = "The leaderboard couldn't be loaded right now. Please try again later.";
       }
     }
 

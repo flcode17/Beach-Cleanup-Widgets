@@ -233,7 +233,8 @@
           });
           const data = await res.json();
           if (data.success) {
-            statusEl.innerText = `✅ ${data.message}`;
+            statusEl.style.color = "#27ae60";
+            statusEl.innerText = `Booking confirmed: ${data.message}`;
             for (const s in polygons) {
               polygons[s].setOptions({ fillColor: "#00ff88", fillOpacity: 0.35,
                 strokeColor: "#ffffff", strokeOpacity: 1, strokeWeight: 2 });
@@ -244,10 +245,12 @@
             });
             loadHeatmapFromApi();
           } else {
-            statusEl.innerText = `❌ ${data.message}`;
+            statusEl.style.color = "#c0392b";
+            statusEl.innerText = `Booking not completed: ${data.message}`;
           }
         } catch {
-          statusEl.innerText = "❌ Could not reach the server on port 5001.";
+          statusEl.style.color = "#c0392b";
+          statusEl.innerText = "We couldn't complete your booking right now. Please try again in a moment.";
         } finally {
           btn.disabled = false; btn.textContent = "Reserve Slot";
         }

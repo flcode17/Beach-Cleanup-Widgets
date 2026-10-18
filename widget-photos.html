@@ -105,12 +105,12 @@
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ uploader_name: "Volunteer", photos: photoPayloads }),
         });
-        if (response.status === 413) { showMessage("❌ These photos are too large together. Try uploading fewer at a time.", true); return; }
-        if (response.status === 429) { showMessage("⏳ Too many uploads right now. Please wait a minute and try again.", true); return; }
-        if (response.status === 401) { showMessage("🔒 Your session has expired. Please reload the page and log in again.", true); return; }
+        if (response.status === 413) { showMessage("These photos are too large together. Try uploading fewer at a time.", true); return; }
+        if (response.status === 429) { showMessage("Too many uploads right now. Please wait a minute and try again.", true); return; }
+        if (response.status === 401) { showMessage("Your session has expired. Please reload the page and log in again.", true); return; }
         renderResults(await response.json());
       } catch (err) {
-        showMessage("❌ Couldn't upload right now. Please check your connection and try again.", true);
+        showMessage("Couldn't upload right now. Please check your connection and try again.", true);
       } finally {
         uploadBox.style.opacity = "1";
         uploadBox.style.cursor  = "pointer";
@@ -120,18 +120,18 @@
     function renderResults(data) {
       resultsEl.replaceChildren();
       if (data.accepted?.length > 0) {
-        resultsEl.appendChild(el("p", `✅ ${data.accepted.length} photo(s) added to the gallery`,
+        resultsEl.appendChild(el("p", `${data.accepted.length} photo(s) added to the gallery`,
           "color:#27ae60;font-weight:600;margin-bottom:8px;"));
         const ul = el("ul", "", "margin:0 0 16px 0;padding-left:20px;");
         data.accepted.forEach(p => ul.appendChild(el("li", p.name)));
         resultsEl.appendChild(ul);
-        const link = el("a", "View photos in the Gallery →");
+        const link = el("a", "View photos in the Gallery");
         link.href   = `https://smartbeachcleanups.com/gallery.html?client=${encodeURIComponent(CLIENT_ID)}`;
         link.target = "_parent";
         const p = el("p"); p.appendChild(link); resultsEl.appendChild(p);
       }
       if (data.rejected?.length > 0) {
-        resultsEl.appendChild(el("p", `❌ ${data.rejected.length} photo(s) not added`,
+        resultsEl.appendChild(el("p", `${data.rejected.length} photo(s) not added`,
           "color:#c0392b;font-weight:600;margin:16px 0 8px;"));
         const ul = el("ul", "", "margin:0;padding-left:20px;");
         data.rejected.forEach(p => {
