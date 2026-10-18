@@ -40,6 +40,9 @@
     const resultsEl = document.getElementById("results");
     const uploadBox = document.querySelector(".upload-box");
 
+    const MAX_PHOTOS = 10;
+    const MAX_SIDE   = 2000;   // shrink in the browser first; the server does the final resize
+
     function readFileAsDataURL(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -49,32 +52,65 @@
       });
     }
 
+    // Phone photos can be 5-10 MB each; shrinking first keeps uploads fast and under the size limit.
+    // Falls back to the original file if the browser can't decode it.
+    async function shrinkToDataURL(file) {
+      try {
+        const bmp   = await createImageBitmap(file);   // applies the photo's rotation
+        const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        bmp.close();
+        return canvas.toDataURL("image/jpeg", 0.9);
+      } catch {
+        return readFileAsDataURL(file);
+      }
+    }
+
+    // All text from the server or file names is inserted with textContent, never innerHTML.
+    function el(tag, text, css) {
+      const node = document.createElement(tag);
+      if (text) node.textContent = text;
+      if (css)  node.style.cssText = css;
+      return node;
+    }
+
+    function showMessage(text, isError) {
+      resultsEl.replaceChildren(el("p", text,
+        `text-align:center;padding:20px;${isError ? "color:#c0392b;" : "opacity:0.6;"}`));
+    }
+
     input.addEventListener("change", async () => {
       const files = [...input.files];
       input.value = "";
       if (files.length === 0) return;
+      if (files.length > MAX_PHOTOS) {
+        showMessage(`Please choose at most ${MAX_PHOTOS} photos at a time.`, true);
+        return;
+      }
 
       uploadBox.style.opacity = "0.5";
       uploadBox.style.cursor  = "default";
-      resultsEl.innerHTML = `<p style="text-align:center;padding:20px;opacity:0.6;">
-        Uploading ${files.length} photo(s)…<br>
-        <small>AI content check in progress. This may take a few seconds.</small>
-      </p>`;
+      resultsEl.replaceChildren(
+        el("p", `Uploading ${files.length} photo(s)…`, "text-align:center;padding:20px 20px 0;opacity:0.6;"),
+        el("p", "Checking photos. This may take a few seconds.", "text-align:center;font-size:0.85rem;opacity:0.6;"));
 
       try {
         const photoPayloads = await Promise.all(
-          files.map(async file => ({ name: file.name, src: await readFileAsDataURL(file) }))
+          files.map(async file => ({ name: file.name, src: await shrinkToDataURL(file) }))
         );
-        const response = await apiFetch(`${API_BASE}/photos?client=${CLIENT_ID}`, {
+        const response = await apiFetch(`${API_BASE}/photos?client=${encodeURIComponent(CLIENT_ID)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ uploader_name: "Volunteer", photos: photoPayloads }),
         });
+        if (response.status === 413) { showMessage("❌ These photos are too large together. Try uploading fewer at a time.", true); return; }
+        if (response.status === 429) { showMessage("⏳ Too many uploads right now. Please wait a minute and try again.", true); return; }
+        if (response.status === 401) { showMessage("🔒 Your session has expired. Please reload the page and log in again.", true); return; }
         renderResults(await response.json());
       } catch (err) {
-        resultsEl.innerHTML = `<p style="text-align:center;padding:20px;color:#c0392b;">
-          ❌ Could not reach the server.<br>
-          <small>Make sure the Flask server is running on port 5001.</small>
-        </p>`;
+        showMessage("❌ Couldn't upload right now. Please check your connection and try again.", true);
       } finally {
         uploadBox.style.opacity = "1";
         uploadBox.style.cursor  = "pointer";
@@ -82,36 +118,32 @@
     });
 
     function renderResults(data) {
-      resultsEl.innerHTML = "";
+      resultsEl.replaceChildren();
       if (data.accepted?.length > 0) {
-        const h = document.createElement("p");
-        h.style.cssText = "color:#27ae60;font-weight:600;margin-bottom:8px;";
-        h.textContent   = `✅ ${data.accepted.length} photo(s) accepted`;
-        resultsEl.appendChild(h);
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin:0 0 16px 0;padding-left:20px;";
-        data.accepted.forEach(p => { const li = document.createElement("li"); li.textContent = p.name; ul.appendChild(li); });
+        resultsEl.appendChild(el("p", `✅ ${data.accepted.length} photo(s) added to the gallery`,
+          "color:#27ae60;font-weight:600;margin-bottom:8px;"));
+        const ul = el("ul", "", "margin:0 0 16px 0;padding-left:20px;");
+        data.accepted.forEach(p => ul.appendChild(el("li", p.name)));
         resultsEl.appendChild(ul);
-        const link = document.createElement("p");
-        link.innerHTML = `<a href="https://smartbeachcleanups.com/gallery.html?client=${CLIENT_ID}" target="_parent">View photos in the Gallery →</a>`;
-        resultsEl.appendChild(link);
+        const link = el("a", "View photos in the Gallery →");
+        link.href   = `https://smartbeachcleanups.com/gallery.html?client=${encodeURIComponent(CLIENT_ID)}`;
+        link.target = "_parent";
+        const p = el("p"); p.appendChild(link); resultsEl.appendChild(p);
       }
       if (data.rejected?.length > 0) {
-        const h = document.createElement("p");
-        h.style.cssText = "color:#c0392b;font-weight:600;margin:16px 0 8px;";
-        h.textContent   = `❌ ${data.rejected.length} photo(s) rejected`;
-        resultsEl.appendChild(h);
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin:0;padding-left:20px;";
+        resultsEl.appendChild(el("p", `❌ ${data.rejected.length} photo(s) not added`,
+          "color:#c0392b;font-weight:600;margin:16px 0 8px;"));
+        const ul = el("ul", "", "margin:0;padding-left:20px;");
         data.rejected.forEach(p => {
-          const li = document.createElement("li");
-          li.innerHTML = `<strong>${p.name}</strong> — ${p.reason}`;
+          const li = el("li");
+          li.appendChild(el("strong", p.name));
+          li.appendChild(document.createTextNode(` — ${p.reason}`));
           ul.appendChild(li);
         });
         resultsEl.appendChild(ul);
       }
       if (!data.accepted?.length && !data.rejected?.length) {
-        resultsEl.innerHTML = `<p style="text-align:center;opacity:0.6;">${data.message}</p>`;
+        showMessage(data.message || "Something went wrong. Please try again.", false);
       }
     }
   </script>
