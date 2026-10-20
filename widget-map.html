@@ -205,9 +205,12 @@
 
     // ── Reserve button ────────────────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", async () => {
-      // Prevent selecting past dates
-      const todayStr = new Date().toISOString().split("T")[0];
-      document.getElementById("cleanupDate").min = todayStr;
+      // Allow today through 28 days ahead (same window the server accepts).
+      // Uses the visitor's local date, not UTC, so evening bookings for "today" work.
+      const localISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const lastDay  = new Date(); lastDay.setDate(lastDay.getDate() + 28);
+      document.getElementById("cleanupDate").min = localISO(new Date());
+      document.getElementById("cleanupDate").max = localISO(lastDay);
 
       await initAuthWidget();
       document.getElementById("reserveBtn").addEventListener("click", async () => {
