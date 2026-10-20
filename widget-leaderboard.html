@@ -57,19 +57,23 @@
       const tableEl  = document.getElementById("leaderboardTable");
       const tbody    = document.getElementById("leaderboardBody");
       try {
-        const r = await apiFetch(`${API_BASE}/leaderboard?client=${CLIENT_ID}`);
+        const r = await apiFetch(`${API_BASE}/leaderboard?client=${encodeURIComponent(CLIENT_ID)}`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const entries = await r.json();
         if (entries.length === 0) {
           statusEl.textContent = "No leaderboard data yet.";
           return;
         }
-        tbody.innerHTML = "";
+        tbody.replaceChildren();
         entries.forEach(p => {
+          // Text is set with textContent so names can never be interpreted as HTML
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${p.rank}</td><td class="name">${p.name}</td>
-            <td>${p.weight_30d}</td><td>${p.weight_ytd}</td>
-            <td>${p.cleanups_30d}</td><td>${p.cleanups_ytd}</td>`;
+          [p.rank, p.name, p.weight_30d, p.weight_ytd, p.cleanups_30d, p.cleanups_ytd].forEach((value, i) => {
+            const td = document.createElement("td");
+            if (i === 1) td.className = "name";
+            td.textContent = value;
+            row.appendChild(td);
+          });
           tbody.appendChild(row);
         });
         statusEl.style.display = "none";
